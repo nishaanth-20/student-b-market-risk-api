@@ -1,0 +1,13 @@
+# Versions required by the brief (Python 3.12.13)
+fastapi[standard]==0.139.0
+uvicorn==0.50.0
+pandas==2.2.2
+lightgbm==4.6.0
+scikit-learn==1.6.1
+joblib==1.5.3
+
+# Training only (training/train_mri.py)
+optuna==4.9.0
+
+# Tests only
+pytest

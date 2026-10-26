@@ -1,0 +1,21 @@
+[project]
+name = "student-b-market-risk-api"
+version = "1.0.0"
+description = "FastAPI service predicting the Market Risk Index (MRI) of cryptocurrencies 7 days ahead (AT3 Student B)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"  # developed on 3.12.13 as required
+dependencies = [
+    "fastapi[standard]==0.139.0",
+    "uvicorn==0.50.0",
+    "pandas==2.2.2",
+    "lightgbm==4.6.0",
+    "scikit-learn==1.6.1",
+    "joblib==1.5.3",
+]
+
+[project.optional-dependencies]
+train = ["optuna==4.9.0"]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: student-b-mri-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.13
+      - key: STUDENT_A_URL
+        sync: false   # set in the Render dashboard, e.g. https://student-a-xxx.onrender.com
+      - key: STUDENT_C_URL
+        sync: false
+      - key: GITHUB_URL
+        sync: false
