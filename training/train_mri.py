@@ -15,13 +15,14 @@ Steps
    7-day target ever crosses a gap.
 2. Build features with the agreed formulas and the MRI target at t+7.
 3. Split by time with a 7-day gap (group agreement, point 8):
-   train <= 2022, validation 2023, test 2024-2025.
+   train <= 2022-12-31, validation 2023-01-08 to 2023-12-31, test from 2024-01-08.
 4. Optuna tunes LightGBM on the validation set (RMSE).
 5. Refit on train + validation with the best parameters, evaluate on test,
    and compare with two baselines.
 """
 
 import argparse
+import csv
 import json
 import re
 import sys
@@ -58,11 +59,12 @@ TOKEN_ALIASES = {
     "TRX": ["trx", "tron"],
 }
 
-# Time split with a 7-day gap: the last 7 days before each boundary are dropped
-# because their targets (t+7) fall inside the next split.
-TRAIN_END = pd.Timestamp("2022-12-31") - pd.Timedelta(days=H)
-VAL_START, VAL_END = pd.Timestamp("2023-01-01"), pd.Timestamp("2023-12-31") - pd.Timedelta(days=H)
-TEST_START, TEST_END = pd.Timestamp("2024-01-01"), pd.Timestamp("2025-12-31")
+# Time split agreed by the group: 7 days dropped AFTER each boundary, so the
+# t+7 targets of the last rows in one split never share dates with the next.
+# train <= 2022-12-31, validation 2023-01-08 .. 2023-12-31, test >= 2024-01-08.
+TRAIN_END = pd.Timestamp("2022-12-31")
+VAL_START, VAL_END = pd.Timestamp("2023-01-01") + pd.Timedelta(days=H), pd.Timestamp("2023-12-31")
+TEST_START, TEST_END = pd.Timestamp("2024-01-01") + pd.Timedelta(days=H), pd.Timestamp("2099-12-31")
 
 SEARCH_SPACE = {
     "learning_rate": "log-uniform [0.01, 0.2]",
@@ -78,8 +80,10 @@ SEARCH_SPACE = {
 
 
 # ------------------------------------------------------------------- data
-def token_from_filename(path: Path) -> str | None:
-    words = set(re.split(r"[^a-z]+", path.stem.lower()))
+def token_from_path(path: Path, data_dir: Path) -> str | None:
+    """Find the coin in the file name or its folder, e.g. 'Bitcoin (BTC)/x.csv'."""
+    rel = path.relative_to(data_dir).with_suffix("")
+    words = set(re.split(r"[^a-z]+", str(rel).lower()))
     for token, aliases in TOKEN_ALIASES.items():
         if words & set(aliases):
             return token
@@ -89,16 +93,20 @@ def token_from_filename(path: Path) -> str | None:
 def load_dataset(data_dir: Path) -> pd.DataFrame:
     frames = []
     for path in sorted(data_dir.rglob("*.csv")):
-        if path.stat().st_size == 0:
-            print(f"skip empty file: {path.name}")
+        name = str(path.relative_to(data_dir))
+        if path.stat().st_size <= 3:  # empty, or only a UTF-8 BOM
+            print(f"skip empty file: {name}")
             continue
-        token = token_from_filename(path)
+        token = token_from_path(path, data_dir)
         if token is None:
-            print(f"skip (no token in filename): {path.name}")
+            print(f"skip (no coin name in folder or file name): {name}")
             continue
-        df = pd.read_csv(path, sep=None, engine="python")  # handles ',' or ';'
+        try:
+            df = pd.read_csv(path, sep=None, engine="python", encoding="utf-8-sig")  # ',' or ';', strips BOM
+        except (pd.errors.EmptyDataError, csv.Error):
+            df = pd.DataFrame()
         if df.empty:
-            print(f"skip empty file: {path.name}")
+            print(f"skip empty file: {name}")
             continue
         df.columns = [c.strip() for c in df.columns]
         date_col = "timeOpen" if "timeOpen" in df.columns else "date"
@@ -107,7 +115,7 @@ def load_dataset(data_dir: Path) -> pd.DataFrame:
         )
         df["token"] = token
         frames.append(df[["token", "date", "open", "high", "low", "close", "volume"]])
-        print(f"loaded {path.name}: {token}, {len(df)} rows")
+        print(f"loaded {name}: {token}, {len(df)} rows")
     if not frames:
         raise SystemExit(f"No usable CSV files in {data_dir}")
 
@@ -128,8 +136,9 @@ def build_features(data: pd.DataFrame) -> pd.DataFrame:
         df["token"] = token
         out.append(df)
     full = pd.concat(out, ignore_index=True)
-    # Keep rows where the target exists. Features may still be NaN.
-    return full.dropna(subset=["MRI_target"]).reset_index(drop=True)
+    # Keep rows with a target and all features (matches the group's row counts).
+    # Missing features are added back on purpose later by add_missing_copies().
+    return full.dropna(subset=["MRI_target", *MODEL_FEATURES]).reset_index(drop=True)
 
 
 def split(df: pd.DataFrame):
@@ -282,7 +291,7 @@ def main():
         "splits": {
             "train": f"<= {TRAIN_END:%Y-%m-%d}",
             "validation": f"{VAL_START:%Y-%m-%d} to {VAL_END:%Y-%m-%d}",
-            "test": f"{TEST_START:%Y-%m-%d} to {TEST_END:%Y-%m-%d}",
+            "test": f"{TEST_START:%Y-%m-%d} onwards",
         },
         "optuna_history": [
             {"trial": t.number, "rmse": t.value, **t.params} for t in study.trials
@@ -290,7 +299,7 @@ def main():
     }
     (args.out_dir / "training_report.json").write_text(json.dumps(report, indent=2, default=str))
 
-    print("\nTest set (2024-2025)")
+    print(f"\nTest set ({TEST_START:%Y-%m-%d} onwards)")
     print(f"  LightGBM      RMSE {test_metrics['rmse']:.2f}  MAE {test_metrics['mae']:.2f}  R2 {test_metrics['r2']:.3f}")
     print(f"  Persistence   RMSE {persistence['rmse']:.2f}  MAE {persistence['mae']:.2f}  R2 {persistence['r2']:.3f}")
     print(f"  Mean          RMSE {mean_baseline['rmse']:.2f}")

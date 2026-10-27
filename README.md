@@ -8,7 +8,7 @@ FastAPI service for AT3 (36120). It predicts the **Market Risk Index** of a cryp
 |---|---|
 | Group | Group 15 |
 | Student B | Nishaanth Govindaraj 26044382 |
-| Live API | https://<your-service>.onrender.com (docs at `/docs`) |
+| Live API | https://student-b-market-risk-api.onrender.com (docs at `/docs`) |
 | Data source | Kraken public OHLC API, daily candles, completed UTC days only |
 | Tokens | BTC, ETH, XRP, SOL, DOGE, XMR, XLM, TRX |
 

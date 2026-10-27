@@ -1,0 +1,51 @@
+{
+  "feature_importance": {
+    "DrawdownRisk": 0.4862,
+    "Volatility20": 0.3776,
+    "Return20": 0.1117,
+    "GapRisk": 0.0163,
+    "MaxPrice20": 0.0082
+  },
+  "feature_importance_type": "gain, normalised to sum to 1",
+  "best_params": {
+    "learning_rate": 0.021862373872348833,
+    "num_leaves": 68,
+    "max_depth": 3,
+    "min_child_samples": 191,
+    "subsample": 0.6994230096337584,
+    "colsample_bytree": 0.7549527338996557,
+    "reg_alpha": 5.30856262845958e-06,
+    "reg_lambda": 0.00046006228142153903,
+    "subsample_freq": 1,
+    "n_estimators": 185
+  },
+  "metrics": {
+    "test": {
+      "rmse": 9.569406021359145,
+      "mae": 7.2476868330105635,
+      "r2": 0.5433107795089094
+    },
+    "baseline_persistence_test": {
+      "rmse": 10.645277738999418,
+      "mae": 7.580161738786943,
+      "r2": 0.4348486217716495
+    },
+    "baseline_mean_test": {
+      "rmse": 16.627396424227754,
+      "mae": 14.36785268780216,
+      "r2": -0.3787937300077273
+    }
+  },
+  "training_period": "2014-12-17 to 2023-12-31 (train + validation)",
+  "test_period": "2024-01-08 to 2025-12-24",
+  "tokens": [
+    "BTC",
+    "DOGE",
+    "ETH",
+    "SOL",
+    "TRX",
+    "XLM",
+    "XMR",
+    "XRP"
+  ]
+}
