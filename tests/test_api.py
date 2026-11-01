@@ -105,7 +105,10 @@ def test_predict_with_peers_down(client, monkeypatch):
     body = r.json()
     assert r.status_code == 200
     assert body["prediction"] == 42.0
-    assert len(body["missing_features"]) == 5
+    # Only the peer features are missing; TrendStrength is computed by this API
+    assert body["missing_features"] == ["Return20", "Volatility20", "GapRisk", "DrawdownRisk"]
+    assert body["features_used"]["TrendStrength"] is not None
+    assert body["risk_warning_level"] == "Moderate"  # no current MRI -> same as forecast
     assert body["prediction_date"] == (datetime.now(timezone.utc).date() + timedelta(days=6)).isoformat()
 
 
@@ -126,6 +129,8 @@ def test_predict_with_peers_up(client, monkeypatch):
     assert body["features_used"]["DrawdownRisk"] == pytest.approx((200 - close) / 200)
     assert list(m.last_X.columns) == main.MODEL_FEATURES
     assert body["current_mri"] is not None
+    # warning level uses the higher of today's MRI and the forecast
+    assert body["risk_warning_level"] == main.risk_level(max(42.0, body["current_mri"]))
 
 
 def test_peer_with_wrong_date_is_ignored(client, monkeypatch):

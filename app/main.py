@@ -158,7 +158,7 @@ async def predict(req: PredictRequest):
     if model is None:
         return JSONResponse(
             status_code=503,
-            content={"error": "Model file not found. Train it with training/train_mri.py."},
+            content={"error": "Model file not found. Copy it from the experiments notebook into models/."},
         )
 
     own = latest_own_features(token)  # raises DataSourceError -> 503
@@ -184,6 +184,7 @@ async def predict(req: PredictRequest):
     }
     mp = values["MaxPrice20"]
     values["DrawdownRisk"] = (mp - close) / mp if mp and close is not None else None
+    values["TrendStrength"] = own["TrendStrength"]  # own feature, no network call
 
     row = pd.DataFrame(
         [[np.nan if values[f] is None else values[f] for f in MODEL_FEATURES]],
@@ -201,10 +202,15 @@ async def predict(req: PredictRequest):
     missing = [f for f in MODEL_FEATURES if values[f] is None]
     prediction_date = (pd.Timestamp(date) + timedelta(days=FORECAST_HORIZON)).strftime("%Y-%m-%d")
 
+    # Conservative warning (notebook J.5): the model under-forecasts rare high-risk
+    # weeks, so warn at the higher of today's MRI and the forecast.
+    warning_score = max(score, current) if current is not None else score
+
     return {
         "token": token,
         "prediction": round(score, 2),
         "risk_level": risk_level(score),
+        "risk_warning_level": risk_level(warning_score),
         "forecast_horizon": FORECAST_HORIZON,
         "date": date,
         "prediction_date": prediction_date,
@@ -234,8 +240,9 @@ def model_metadata():
         "features": MODEL_FEATURES,
         "feature_sources": FEATURE_SOURCE,
         "own_features": ["MA5", "MA20", "TrendStrength"],
+        "risk_warning_rule": "risk_warning_level uses max(today's MRI, forecast) to reduce missed high-risk weeks",
         "risk_levels": {"Low": "0-25", "Moderate": "25-50", "High": "50-75", "Very High": "75-100"},
         "model_loaded": model is not None,
     }
-    # Training results (feature importance, best params, metrics) from the training run.
+    # Training results (feature importance, best params, metrics) from the experiments notebook.
     return {**base, **metadata}

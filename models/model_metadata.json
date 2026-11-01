@@ -1,51 +1,55 @@
 {
+  "target": "Market Risk Index (MRI)",
+  "algorithm": "LightGBM Regressor",
+  "forecast_horizon": 7,
+  "features": [
+    "Return20",
+    "Volatility20",
+    "GapRisk",
+    "DrawdownRisk",
+    "TrendStrength"
+  ],
   "feature_importance": {
-    "DrawdownRisk": 0.4862,
-    "Volatility20": 0.3776,
-    "Return20": 0.1117,
-    "GapRisk": 0.0163,
-    "MaxPrice20": 0.0082
+    "Volatility20": 0.483448,
+    "DrawdownRisk": 0.251032,
+    "TrendStrength": 0.159246,
+    "Return20": 0.056737,
+    "GapRisk": 0.049537
   },
   "feature_importance_type": "gain, normalised to sum to 1",
+  "missing_value_handling": "trained with simulated outages of Student A and C features (15.0% of rows each)",
   "best_params": {
-    "learning_rate": 0.021862373872348833,
-    "num_leaves": 68,
-    "max_depth": 3,
-    "min_child_samples": 191,
-    "subsample": 0.6994230096337584,
-    "colsample_bytree": 0.7549527338996557,
-    "reg_alpha": 5.30856262845958e-06,
-    "reg_lambda": 0.00046006228142153903,
-    "subsample_freq": 1,
-    "n_estimators": 185
+    "objective": "l1",
+    "learning_rate": 0.12112001849031563,
+    "num_leaves": 100,
+    "max_depth": 9,
+    "min_child_samples": 299,
+    "subsample": 0.5291463772829254,
+    "colsample_bytree": 0.8018255157946405,
+    "reg_alpha": 0.5969099892226736,
+    "reg_lambda": 0.889677192442464
   },
+  "n_estimators": 34,
+  "training_period": "start of data to 2023-12-31 (train + validation refit)",
+  "test_period": "after 2023-12-31 + 7 days",
   "metrics": {
     "test": {
-      "rmse": 9.569406021359145,
-      "mae": 7.2476868330105635,
-      "r2": 0.5433107795089094
+      "mae": 6.748,
+      "rmse": 9.414,
+      "r2": 0.558
     },
     "baseline_persistence_test": {
-      "rmse": 10.645277738999418,
-      "mae": 7.580161738786943,
-      "r2": 0.4348486217716495
-    },
-    "baseline_mean_test": {
-      "rmse": 16.627396424227754,
-      "mae": 14.36785268780216,
-      "r2": -0.3787937300077273
+      "mae": 7.58,
+      "rmse": 10.645,
+      "r2": 0.435
     }
   },
-  "training_period": "2014-12-17 to 2023-12-31 (train + validation)",
-  "test_period": "2024-01-08 to 2025-12-24",
-  "tokens": [
-    "BTC",
-    "DOGE",
-    "ETH",
-    "SOL",
-    "TRX",
-    "XLM",
-    "XMR",
-    "XRP"
-  ]
+  "libraries": {
+    "python": "3.12.3",
+    "lightgbm": "4.6.0",
+    "scikit-learn": "1.6.1",
+    "pandas": "2.2.2",
+    "numpy": "2.5.4"
+  },
+  "created_at": "2026-10-30 01:25 UTC"
 }

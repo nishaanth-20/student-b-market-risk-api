@@ -38,18 +38,20 @@ STUDENT_A_FEATURES = ["DailyReturn", "Return5", "Return20", "Momentum"]
 STUDENT_C_FEATURES = ["Volatility20", "MaxPrice20", "MaxDrawdown", "GapRisk"]
 STUDENT_D_FEATURES = ["VolumeMA20", "RelativeVolume"]
 
-# Model inputs. The four required features come from Students A and C.
-# DrawdownRisk is Student B's own intermediate variable, built from
-# MaxPrice20 (Student C) and today's close (Kraken).
-MODEL_FEATURES = ["Return20", "Volatility20", "MaxPrice20", "GapRisk", "DrawdownRisk"]
+# Model inputs, in the order the model was trained on (experiments notebook,
+# section D.3). MaxPrice20 is not a direct input: it is a raw price level, so it
+# is used through DrawdownRisk = (MaxPrice20 - Close) / MaxPrice20, which is how
+# the MRI formula uses it. TrendStrength is computed by this API itself, so it
+# is available even when both other services are down.
+MODEL_FEATURES = ["Return20", "Volatility20", "GapRisk", "DrawdownRisk", "TrendStrength"]
 
 # Where each model input comes from, used to report missing sources.
 FEATURE_SOURCE = {
     "Return20": "student_a",
     "Volatility20": "student_c",
-    "MaxPrice20": "student_c",
     "GapRisk": "student_c",
-    "DrawdownRisk": "student_c",
+    "DrawdownRisk": "student_c (MaxPrice20) + Kraken close",
+    "TrendStrength": "student_b (this API)",
 }
 
 # Peer APIs (set these as environment variables on Render).

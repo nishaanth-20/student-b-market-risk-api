@@ -7,10 +7,11 @@ FastAPI service for AT3 (36120). It predicts the **Market Risk Index** of a cryp
 | | |
 |---|---|
 | Group | Group 15 |
-| Student B | Nishaanth Govindaraj 26044382 |
+| Student B | Nishaanth Govindaraj (26044382) |
 | Live API | https://student-b-market-risk-api.onrender.com (docs at `/docs`) |
 | Data source | Kraken public OHLC API, daily candles, completed UTC days only |
 | Tokens | BTC, ETH, XRP, SOL, DOGE, XMR, XLM, TRX |
+| Model training | Group experiments repo, notebook `36120_26SP_AT3_15_26044382_experiment.ipynb` |
 
 ## Endpoints
 
@@ -30,13 +31,15 @@ Example `/predict` response:
 ```json
 {
   "token": "BTC",
-  "prediction": 38.21,
-  "risk_level": "Moderate",
+  "prediction": 16.82,
+  "risk_level": "Low",
+  "risk_warning_level": "Low",
   "forecast_horizon": 7,
-  "date": "2026-10-24",
-  "prediction_date": "2026-10-31",
-  "current_mri": 35.9,
-  "features_used": {"Return20": -0.04, "Volatility20": 0.021, "MaxPrice20": 71250.0, "GapRisk": 0.002, "DrawdownRisk": 0.06},
+  "date": "2026-10-29",
+  "prediction_date": "2026-11-05",
+  "current_mri": 19.93,
+  "features_used": {"Return20": -0.08, "Volatility20": 0.03, "MaxPrice20": 165.0, "GapRisk": 0.001,
+                    "DrawdownRisk": 0.05, "TrendStrength": 0.05},
   "missing_features": [],
   "feature_sources": {"student_a": "ok", "student_c": "ok"},
   "warnings": []
@@ -49,55 +52,50 @@ file → **503** `{"error": ...}`.
 
 ## How a prediction is made
 
-1. Download daily candles from Kraken, drop today's unfinished candle (`date` = last completed UTC day).
+1. Download daily candles from Kraken, drop today's unfinished candle (`date` = last completed UTC day),
+   and compute my own TrendStrength.
 2. Call Student A and Student C's `/features` **at the same time** with a 10-second limit.
-3. Model inputs: `Return20` (A), `Volatility20`, `MaxPrice20`, `GapRisk` (C), and
-   `DrawdownRisk = (MaxPrice20 − Close) / MaxPrice20` (Student B's intermediate variable).
+3. Model inputs (order matters): `Return20` (A), `Volatility20`, `GapRisk` (C),
+   `DrawdownRisk = (MaxPrice20 − Close) / MaxPrice20` (MaxPrice20 from C, close from Kraken),
+   and `TrendStrength` (this API).
 4. If a peer is down, times out, or returns a different `date`, its features are sent to the
    model as missing values. LightGBM routes missing values natively, and the model was trained
-   with extra copies of rows where one peer's features were blanked, so it has learned how to do this.
-5. The prediction is clipped to 0–100 and returned with HTTP 200.
+   with simulated outages of Student A and Student C, so it still gives a usable forecast.
+   TrendStrength is always available.
+5. The prediction is clipped to 0–100 and returned with HTTP 200, with:
+   - `risk_level`: the band of the forecast (Low < 25 ≤ Moderate < 50 ≤ High < 75 ≤ Very High)
+   - `current_mri`: today's MRI from the formula (only when A and C are both up)
+   - `risk_warning_level`: the band of **max(today's MRI, forecast)**. The model tends to
+     under-forecast rare high-risk weeks; this conservative rule misses fewer of them
+     (46.7% vs 65.7% on the 2024–2025 test set, notebook section J.5).
 
-## Target
+## Model
 
-```
-DR  = (MaxPrice20 − Close_t) / MaxPrice20          RR  = |min(Return20, 0)|
-VRN = min(Volatility20 / 0.10, 1)                   DRN = min(DR / 0.40, 1)
-RRN = min(RR / 0.30, 1)                             GRN = min(GapRisk / 0.10, 1)
-MRI = 100 × (0.40·VRN + 0.30·DRN + 0.20·RRN + 0.10·GRN)
-```
+| | |
+|---|---|
+| Algorithm | LightGBM regressor, L1 (absolute error) loss, tuned with Optuna (60 trials) |
+| Features | Return20, Volatility20, GapRisk, DrawdownRisk, TrendStrength |
+| Split | train ≤ 2022-12-31, validation 2023-01-08 to 2023-12-31, test from 2024-01-08 |
+| Test MAE | **6.75** (no-change baseline 7.58), R² 0.56 |
+| Most important | Volatility20 (48%), DrawdownRisk (25%), TrendStrength (16%) |
 
-The model learns features at day *t* → MRI at day *t + 7*.
+The full experiment (target construction, feature selection, outage simulation, Optuna search,
+model selection and business impact) is in the group experiments repository. The files in
+`models/` are copied from that notebook's output (`student_b_mri_lgbm.joblib` →
+`mri_lgbm.joblib`, `student_b_mri_metadata.json` → `model_metadata.json`).
 
 ## Setup
 
 ```bash
 python3.12 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
-
-### Train the model
-
-Put the provided dataset CSVs in a folder (filenames must contain the coin name or symbol,
-e.g. `Bitcoin_...csv`), then:
-
-```bash
-python -m training.train_mri --data-dir path/to/dataset --trials 50
-```
-
-This writes `models/mri_lgbm.joblib`, `models/model_metadata.json` and
-`models/training_report.json` (search space, best parameters, every Optuna trial, baselines,
-per-token and missing-feature results for the report). Commit the `models/` folder so Render can load it.
-
-Split (group agreement): train ≤ 2022, validation 2023, test 2024–2025, with the last 7 days
-before each boundary dropped so no target leaks into the next split. Each token is put on a
-daily calendar without filling gaps, so no window or target crosses a gap (e.g. XLM 2023).
 
 ### Run locally
 
 ```bash
-export STUDENT_A_URL=https://<student-a>.onrender.com
+export STUDENT_A_URL=https://<student-a>.onrender.com     # PowerShell: $env:STUDENT_A_URL = "..."
 export STUDENT_C_URL=https://<student-c>.onrender.com
 uvicorn app.main:app --reload
 ```
@@ -126,11 +124,9 @@ app/
   main.py        endpoints
   config.py      tokens, Kraken pairs, feature names, peer URLs
   data.py        Kraken download and cleaning
-  features.py    feature, target and MRI formulas (shared by training and serving)
+  features.py    feature and MRI formulas
   peers.py       parallel calls to Students A and C
-models/          trained model and metadata
-training/
-  train_mri.py   LightGBM + Optuna training script
+models/          trained model and metadata (from the experiments notebook)
 tests/
   test_api.py
 ```
